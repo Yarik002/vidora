@@ -1,0 +1,98 @@
+# Caddy is the only service exposed to the outside world.
+# Inside the container it listens on unprivileged ports (runs as non-root);
+# docker maps 80 -> 8080 and 443 -> 8443.
+#
+# Two TLS modes (chosen by deploy.sh via .env):
+#   TLS_KIND=internal  SITE_ADDRESS=https://          self-signed CA, certificate issued on demand
+#                                                      for whatever IP/hostname the VM is opened by
+#                                                      (the API allows only IPs, localhost and our domain)
+#   TLS_KIND=acme      SITE_ADDRESS=https://domain     Let's Encrypt with ACME_EMAIL
+{
+	admin off
+	http_port 8080
+	https_port 8443
+	auto_https disable_redirects
+	skip_install_trust
+	on_demand_tls {
+		ask http://api:8000/api/v1/internal/tls-ask
+	}
+}
+
+(tls_internal) {
+	tls internal {
+		on_demand
+	}
+}
+(tls_acme) {
+	tls {$ACME_EMAIL}
+}
+
+(hsts_on) {
+	header Strict-Transport-Security "max-age=31536000"
+}
+(hsts_off) {
+}
+
+(security_headers) {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+	}
+}
+
+# Plain HTTP only redirects to HTTPS (ACME http-01 challenges are still answered by Caddy).
+http:// {
+	redir https://{host}{uri} permanent
+}
+
+{$SITE_ADDRESS:https://} {
+	import tls_{$TLS_KIND:internal}
+	import security_headers
+	import hsts_{$HSTS_MODE:off}
+
+	# Internal endpoints are for Caddy itself, not for the internet.
+	handle /api/v1/internal/* {
+		respond 404
+	}
+
+	# Limit for ordinary API requests; video bytes never go through the API.
+	handle /api/* {
+		request_body {
+			max_size 2MB
+		}
+		reverse_proxy api:8000
+	}
+
+	# Swagger UI loads its JS/CSS from a CDN and uses an inline script, so it gets its own CSP.
+	@docs path /docs /docs/* /openapi.json
+	handle @docs {
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; frame-ancestors 'none'"
+		reverse_proxy api:8000
+	}
+
+	# Same-origin gateway to MinIO for presigned URLs (upload parts and playback).
+	# The prefix is stripped; the Host header is preserved, so S3 signatures stay valid.
+	# One request = one multipart part (10 MB), so 16 MB is a hard cap per request.
+	handle_path /storage/* {
+		request_body {
+			max_size 16MB
+		}
+		reverse_proxy minio:9000 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		root * /srv
+		encode zstd gzip
+		try_files {path} /index.html
+		file_server
+	}
+}
