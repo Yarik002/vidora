@@ -132,6 +132,7 @@ step "Building images (first run takes a few minutes)"
 retry 3 compose build --pull  # base images and packages come from the network
 
 step "Starting services"
+retry 3 compose pull --quiet --ignore-buildable  # third-party images (Postgres, Redis, MinIO)
 compose up -d --remove-orphans
 
 step "Waiting for the app to become ready"
