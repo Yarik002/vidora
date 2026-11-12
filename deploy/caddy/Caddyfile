@@ -44,16 +44,8 @@
 	}
 }
 
-# Plain HTTP only redirects to HTTPS (ACME http-01 challenges are still answered by Caddy).
-http:// {
-	redir https://{host}{uri} permanent
-}
-
-{$SITE_ADDRESS:https://} {
-	import tls_{$TLS_KIND:internal}
-	import security_headers
-	import hsts_{$HSTS_MODE:off}
-
+# All application routes, shared by the HTTPS site and the optional local HTTP preview.
+(app_routes) {
 	# Internal endpoints are for Caddy itself, not for the internet.
 	handle /api/v1/internal/* {
 		respond 404
@@ -95,4 +87,25 @@ http:// {
 		try_files {path} /index.html
 		file_server
 	}
+}
+
+# Plain HTTP: redirect to HTTPS (ACME http-01 challenges are still answered by Caddy).
+# HTTP_MODE=serve is only for local development behind 127.0.0.1 (compose.dev.yml).
+(http_redirect) {
+	redir https://{host}{uri} permanent
+}
+(http_serve) {
+	import security_headers
+	import app_routes
+}
+
+http:// {
+	import http_{$HTTP_MODE:redirect}
+}
+
+{$SITE_ADDRESS:https://} {
+	import tls_{$TLS_KIND:internal}
+	import security_headers
+	import hsts_{$HSTS_MODE:off}
+	import app_routes
 }

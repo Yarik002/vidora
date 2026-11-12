@@ -1,0 +1,11 @@
+# Local development preview over plain HTTP, bound to 127.0.0.1 only:
+#   docker compose -f compose.yml -f compose.dev.yml up -d
+#   open http://localhost:8080
+# Browsers treat http://localhost as a secure context, so Secure cookies still work.
+# Never use this file on a server: production keeps port 80 as a redirect to HTTPS.
+services:
+  web:
+    environment:
+      HTTP_MODE: serve
+    ports:
+      - "127.0.0.1:8080:8080"
