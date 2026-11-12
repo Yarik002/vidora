@@ -1,0 +1,6 @@
+# Everything is LF: the project is deployed on Linux, shell scripts break with CRLF.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.ico binary
