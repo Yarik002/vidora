@@ -85,7 +85,13 @@ $SUDO docker info >/dev/null 2>&1 || start_docker
 # Use docker without sudo if the current user is allowed to.
 if docker info >/dev/null 2>&1; then DOCKER=(docker); else DOCKER=($SUDO docker); fi
 "${DOCKER[@]}" compose version >/dev/null 2>&1 || die "docker compose v2 plugin is missing (apt-get install docker-compose-plugin)"
-command -v openssl >/dev/null || $SUDO apt-get install -y -qq openssl >/dev/null || true
+# Small tools the script relies on (minimal images may lack them).
+missing=()
+for tool in curl; do command -v "$tool" >/dev/null || missing+=("$tool"); done
+if ((${#missing[@]})); then
+  command -v apt-get >/dev/null || die "please install: ${missing[*]}"
+  $SUDO apt-get update -qq && $SUDO apt-get install -y -qq "${missing[@]}" >/dev/null
+fi
 
 compose() { "${DOCKER[@]}" compose "$@"; }
 

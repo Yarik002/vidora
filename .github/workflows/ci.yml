@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff, tsc)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Ruff
+        working-directory: backend
+        run: |
+          pip install ruff==0.8.4
+          ruff check app tests
+          ruff format --check app tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: TypeScript
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit -p tsconfig.json
+
+  tests:
+    name: Backend tests (real Postgres, Redis, MinIO, ffmpeg)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate secrets
+        run: bash scripts/gen_env.sh
+      - name: Pytest
+        run: docker compose -f compose.yml -f compose.test.yml run --rm tests pytest -p no:cacheprovider -v
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+  deploy-e2e:
+    # The closest thing to "a clean Ubuntu VM" in CI: a fresh GitHub-hosted runner.
+    # deploy.sh is run exactly as described in the README, then the end-to-end scenario.
+    name: deploy.sh + e2e on ${{ matrix.os }}
+    needs: [lint]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy with demo data
+        env:
+          VIDORA_HIDE_SECRETS: "1" # CI logs are public
+        run: ./deploy.sh --demo
+      - name: End-to-end scenario
+        run: python3 scripts/e2e.py --base https://localhost
+      - name: Re-run deploy (must be idempotent)
+        env:
+          VIDORA_HIDE_SECRETS: "1"
+        run: ./deploy.sh --demo
+      - name: Data survived the re-deploy
+        run: |
+          count=$(curl -ks "https://localhost/api/v1/videos?limit=60" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))")
+          echo "public videos: $count"
+          test "$count" -ge 12
+      - name: Only Caddy is exposed
+        run: |
+          docker compose ps --format '{{.Service}} {{.Ports}}'
+          ! docker compose ps --format '{{.Service}} {{.Ports}}' | grep -vE '^web ' | grep -q '0.0.0.0'
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
