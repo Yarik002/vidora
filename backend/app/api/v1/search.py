@@ -2,15 +2,28 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import public_host
+from app.core.errors import AppError
 from app.db.session import get_session
-from app.repositories import videos as videos_repo
 from app.schemas.auth import ChannelBrief
 from app.schemas.common import Page
 from app.schemas.video import VideoCard
-from app.services import channel_service
-from app.services.presenters import card_page
+from app.services import channel_service, feed_service
 
 router = APIRouter(prefix="/search", tags=["search"])
+
+
+class EmptyQuery(AppError):
+    status_code = 422
+    code = "validation_error"
+    default_message = "Search query is empty"
+
+
+def _clean(q: str) -> str:
+    """Validate the query after trimming: '   ' must not turn into 'match everything'."""
+    q = " ".join(q.split())
+    if not q:
+        raise EmptyQuery()
+    return q
 
 
 @router.get(
@@ -27,8 +40,7 @@ async def search_videos(
     limit: int = Query(default=20, ge=1, le=50),
     session: AsyncSession = Depends(get_session),
 ) -> Page[VideoCard]:
-    rows = await videos_repo.search(session, q.strip(), offset, limit)
-    return card_page(public_host(request), rows, offset, limit)
+    return await feed_service.search(session, public_host(request), _clean(q), offset, limit)
 
 
 @router.get("/channels", response_model=list[ChannelBrief], summary="Channels matching the query")
@@ -37,4 +49,4 @@ async def search_channels(
     limit: int = Query(default=3, ge=1, le=10),
     session: AsyncSession = Depends(get_session),
 ) -> list[ChannelBrief]:
-    return await channel_service.search_channels(session, q.strip(), limit)
+    return await channel_service.search_channels(session, _clean(q), limit)

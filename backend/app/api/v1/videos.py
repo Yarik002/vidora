@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import client_info, current_user, current_user_optional, public_host
 from app.db.session import get_session
 from app.models import User
-from app.repositories import videos as videos_repo
 from app.schemas.common import Message, Page
 from app.schemas.video import (
     AccessGrantIn,
@@ -20,9 +19,7 @@ from app.schemas.video import (
     VideoStatusOut,
     VideoUpdate,
 )
-from app.services import video_service
-from app.services.access import get_viewable_video
-from app.services.presenters import card_page
+from app.services import feed_service, video_service
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
@@ -35,13 +32,12 @@ async def feed(
     limit: int = Query(default=24, ge=1, le=60),
     session: AsyncSession = Depends(get_session),
 ) -> Page[VideoCard]:
-    rows = await videos_repo.list_feed(session, offset, limit, tag)
-    return card_page(public_host(request), rows, offset, limit)
+    return await feed_service.home(session, public_host(request), offset, limit, tag)
 
 
 @router.get("/tags", response_model=list[str], summary="Popular tags for the chips bar")
 async def popular_tags(session: AsyncSession = Depends(get_session)) -> list[str]:
-    return await videos_repo.popular_tags(session, 15)
+    return await feed_service.popular_tags(session)
 
 
 @router.get("/{video_id}", response_model=VideoDetail)
@@ -131,9 +127,7 @@ async def related(
     user: User | None = Depends(current_user_optional),
     session: AsyncSession = Depends(get_session),
 ) -> Page[VideoCard]:
-    video = await get_viewable_video(session, video_id, user)
-    rows = await videos_repo.related(session, video, limit)
-    return card_page(public_host(request), rows, 0, limit)
+    return await feed_service.related(session, public_host(request), video_id, user, limit)
 
 
 @router.get(

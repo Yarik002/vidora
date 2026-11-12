@@ -90,6 +90,8 @@ class Comment(Base):
     replies_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     # Soft delete keeps the reply thread intact; the body is wiped.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set only by an explicit edit (updated_at also moves on likes/replies counters).
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
 
@@ -256,6 +258,13 @@ class Report(Base):
             "video_id",
             unique=True,
             postgresql_where=text("status = 'open' AND video_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_reports_open_per_user_comment",
+            "reporter_id",
+            "comment_id",
+            unique=True,
+            postgresql_where=text("status = 'open' AND comment_id IS NOT NULL"),
         ),
     )
 

@@ -177,3 +177,39 @@ async def test_original_file_is_recorded(users: Users, sample_video: Path) -> No
         ).all()
     assert [f.kind for f in files] == [FileKind.ORIGINAL]
     assert files[0].size_bytes == sample_video.stat().st_size
+
+
+async def test_complete_can_be_retried_after_storage_assembled_the_object(
+    users: Users, sample_video: Path
+) -> None:
+    """Regression (code review): if S3 completed the multipart but our transaction failed,
+    a retry used to fail forever with NoSuchUpload."""
+    from app.core.config import get_settings
+    from app.services import storage
+
+    alice = await users.new()
+    upload = await _upload(alice, sample_video)
+    s = get_settings()
+    # simulate "storage already assembled it, our side did not record it"
+    parts = [{"PartNumber": p["part_number"], "ETag": p["etag"]} for p in upload["completed_parts"]]
+    from app.db.session import SessionLocal
+    from app.models import UploadSession
+
+    async with SessionLocal() as session:
+        row = await session.get(UploadSession, uuid.UUID(upload["upload_id"]))
+        await storage.complete_multipart(s.bucket_raw, row.object_key, row.s3_upload_id, parts)
+    r = await alice.post(
+        f"/api/v1/uploads/{upload['upload_id']}/complete", json={"parts": upload["completed_parts"]}
+    )
+    assert r.status_code == 200 and r.json()["status"] == "uploaded"
+
+
+async def test_active_uploads_are_limited(users: Users) -> None:
+    from app.services.upload_service import MAX_ACTIVE_UPLOADS
+
+    alice = await users.new()
+    body = {"filename": "a.mp4", "size_bytes": 1000, "content_type": "video/mp4"}
+    codes = [
+        (await alice.post("/api/v1/uploads", json=body)).status_code for _ in range(MAX_ACTIVE_UPLOADS + 1)
+    ]
+    assert codes == [201] * MAX_ACTIVE_UPLOADS + [429]

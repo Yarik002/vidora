@@ -134,3 +134,30 @@ async def test_only_owner_can_edit_or_delete_video(users: Users) -> None:
     assert set(r.json()["tags"]) == {"live", "Music"}  # "#Music" and "music" collapse into one tag
     assert (await admin.delete(f"/api/v1/videos/{vid}")).status_code == 200
     assert (await owner.get(f"/api/v1/videos/{vid}")).status_code == 404
+
+
+async def test_comment_spam_is_rate_limited(users: Users) -> None:
+    owner, spammer = await users.new(), await users.new()
+    vid = await make_ready_video(owner)
+    codes = [
+        (await spammer.post(f"/api/v1/videos/{vid}/comments", json={"body": f"spam {i}"})).status_code
+        for i in range(22)
+    ]
+    assert codes[:20] == [201] * 20
+    assert codes[20:] == [429, 429]
+
+
+async def test_like_or_reply_does_not_mark_comment_as_edited(users: Users) -> None:
+    """Regression (code review): 'edited' used to follow updated_at, which moves on likes/replies."""
+    import asyncio as _asyncio
+
+    owner, alice = await users.new(), await users.new()
+    vid = await make_ready_video(owner)
+    c = (await owner.post(f"/api/v1/videos/{vid}/comments", json={"body": "hi"})).json()
+    await _asyncio.sleep(2.5)
+    await alice.put(f"/api/v1/comments/{c['id']}/reaction", json={"value": 1})
+    await alice.post(f"/api/v1/videos/{vid}/comments", json={"body": "reply", "parent_id": c["id"]})
+    item = (await owner.get(f"/api/v1/videos/{vid}/comments")).json()["items"][0]
+    assert item["edited"] is False
+    r = await owner.patch(f"/api/v1/comments/{c['id']}", json={"body": "hi (fixed)"})
+    assert r.json()["edited"] is True

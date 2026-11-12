@@ -7,12 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import current_user, current_user_optional, public_host
 from app.db.session import get_session
 from app.models import User
-from app.repositories import videos as videos_repo
 from app.schemas.channel import ChannelDetail, ChannelUpdate, PlaylistOut, SubscriptionOut
 from app.schemas.common import Page
 from app.schemas.video import VideoCard
-from app.services import channel_service, playlist_service
-from app.services.presenters import card_page
+from app.services import channel_service, feed_service, playlist_service
 
 router = APIRouter(prefix="/channels", tags=["channels"])
 
@@ -39,13 +37,12 @@ async def channel_videos(
     handle: str,
     request: Request,
     sort: Literal["new", "popular", "old"] = "new",
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=10_000),
     limit: int = Query(default=30, ge=1, le=60),
     session: AsyncSession = Depends(get_session),
 ) -> Page[VideoCard]:
     channel = await channel_service.get_by_handle(session, handle)
-    rows = await videos_repo.list_channel(session, channel.id, offset, limit, sort)
-    return card_page(public_host(request), rows, offset, limit)
+    return await feed_service.channel_videos(session, public_host(request), channel.id, sort, offset, limit)
 
 
 @router.get("/{handle}/playlists", response_model=list[PlaylistOut])

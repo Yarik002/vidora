@@ -13,11 +13,11 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import PurePosixPath
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.errors import AppError, Conflict, NotFound
+from app.core.errors import AppError, Conflict, NotFound, TooManyRequests
 from app.core.queue import enqueue_processing
 from app.models import (
     FileKind,
@@ -34,6 +34,8 @@ from app.schemas.video import UploadComplete, UploadCreate, UploadOut, UploadPar
 from app.services import storage
 from app.services.audit import audit
 
+MAX_ACTIVE_UPLOADS = 5
+
 
 class UploadTooLarge(AppError):
     status_code = 413
@@ -45,6 +47,14 @@ async def create_upload(session: AsyncSession, user: User, data: UploadCreate, h
     s = get_settings()
     if data.size_bytes > s.max_upload_bytes:
         raise UploadTooLarge(f"Max upload size is {s.max_upload_mb} MB")
+    active = await session.scalar(
+        select(func.count())
+        .select_from(UploadSession)
+        .where(UploadSession.user_id == user.id, UploadSession.status == UploadStatus.PENDING)
+        .where(UploadSession.expires_at > datetime.now(UTC))
+    )
+    if (active or 0) >= MAX_ACTIVE_UPLOADS:
+        raise TooManyRequests("Finish or cancel your current uploads first", code="too_many_uploads")
 
     part_size = s.upload_part_bytes
     parts_count = max(1, math.ceil(data.size_bytes / part_size))
@@ -120,10 +130,15 @@ async def complete_upload(
     ]
     try:
         await storage.complete_multipart(upload.bucket, upload.object_key, upload.s3_upload_id, parts)
-    except Exception as exc:  # wrong ETag, missing part, ...
-        raise AppError(
-            "Storage rejected the upload, some parts are missing", code="upload_incomplete"
-        ) from exc
+    except Exception as exc:  # wrong ETag, missing part, or already completed by a previous try
+        # A retry after a failure *after* S3 assembled the object: the multipart upload is gone,
+        # but the object exists. Continue instead of failing forever.
+        try:
+            await storage.object_size(upload.bucket, upload.object_key)
+        except Exception:
+            raise AppError(
+                "Storage rejected the upload, some parts are missing", code="upload_incomplete"
+            ) from exc
 
     video = await session.get(Video, upload.video_id)
     assert video is not None
