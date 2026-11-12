@@ -36,7 +36,7 @@ async def csrf_middleware(request: Request, call_next: Callable[[Request], Await
         request.method not in SAFE_METHODS
         and path.startswith("/api/")
         and path not in EXEMPT_PATHS
-        and "authorization" not in request.headers
+        and not request.headers.get("authorization", "").lower().startswith("bearer ")
     )
     if needs_check:
         cookie = request.cookies.get(CSRF_COOKIE, "")

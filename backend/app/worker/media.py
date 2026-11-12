@@ -2,7 +2,19 @@
 
 import asyncio
 import json
+import logging
 from dataclasses import dataclass
+
+log = logging.getLogger("vidora.worker")
+
+# Untrusted input: ffmpeg must not follow URLs/playlists inside the file (SSRF, local file reads)
+# and may only use the container demuxers we expect for video uploads.
+INPUT_GUARDS = [
+    "-protocol_whitelist",
+    "file",
+    "-format_whitelist",
+    "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,flv,ogg,asf,mpeg",
+]
 
 
 class MediaError(Exception):
@@ -29,8 +41,10 @@ async def _run(args: list[str], timeout: float) -> bytes:
         await proc.wait()
         raise MediaError(f"{args[0]} timed out") from None
     if proc.returncode != 0:
+        # stderr may contain internal paths: it goes to the log, the user gets a generic reason.
         tail = err.decode(errors="replace").strip().splitlines()[-3:]
-        raise MediaError(f"{args[0]} failed: {' | '.join(tail)[:300]}")
+        log.warning("%s failed: %s", args[0], " | ".join(tail)[:500])
+        raise MediaError(f"{args[0]} could not decode the file")
     return out
 
 
@@ -53,6 +67,7 @@ async def probe(path: str, max_duration: float) -> ProbeResult:
     out = await _run(
         [
             "ffprobe",
+            *INPUT_GUARDS,
             "-v",
             "error",
             "-print_format",
@@ -117,6 +132,7 @@ async def transcode(src: str, dst: str, height: int, has_audio: bool, timeout: f
         "-loglevel",
         "error",
         "-y",
+        *INPUT_GUARDS,
         "-i",
         src,
         "-map",
@@ -156,6 +172,7 @@ async def thumbnail(src: str, dst: str, at_seconds: float) -> None:
             "-y",
             "-ss",
             f"{at_seconds:.2f}",
+            *INPUT_GUARDS,
             "-i",
             src,
             "-frames:v",
@@ -175,6 +192,7 @@ async def stream_info(path: str) -> tuple[int, int, int]:
     out = await _run(
         [
             "ffprobe",
+            *INPUT_GUARDS,
             "-v",
             "error",
             "-select_streams",
