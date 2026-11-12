@@ -138,7 +138,7 @@ function NavItem({ to, icon, label, mini }: { to: string; icon: IconName; label:
 }
 
 function Sidebar({ expanded }: { expanded: boolean }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const subs = useApi<ChannelBrief[]>(user && expanded ? "/me/subscriptions" : null);
   if (!expanded) {
     return (
@@ -165,7 +165,7 @@ function Sidebar({ expanded }: { expanded: boolean }) {
             <NavItem to="/studio" icon="videos" label="Ваши видео" mini={false} />
             <NavItem to="/feed/liked" icon="like" label="Понравившиеся" mini={false} />
           </>
-        ) : (
+        ) : loading ? null : (
           <div className="sidebar__signin">
             <p>Войдите, чтобы ставить лайки, писать комментарии и подписываться.</p>
             <Link to="/login" className="btn btn--outline-accent btn--md">
