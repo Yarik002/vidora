@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     redis_host: str = "redis"
     redis_port: int = 6379
     redis_password: str = Field(default="", repr=False)
+    redis_db: int = 0
 
     # S3 / MinIO
     s3_endpoint: str = "http://minio:9000"
@@ -64,7 +65,7 @@ class Settings(BaseSettings):
     @property
     def redis_url(self) -> str:
         auth = f":{self.redis_password}@" if self.redis_password else ""
-        return f"redis://{auth}{self.redis_host}:{self.redis_port}/0"
+        return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
     @property
     def max_upload_bytes(self) -> int:

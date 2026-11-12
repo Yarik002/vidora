@@ -1,0 +1,110 @@
+/*
+ * Vidora design tokens. Components use only these variables (no raw colors / sizes).
+ * Dark theme is the default (like the reference), light theme via [data-theme="light"].
+ * Docs: docs/design-system.md
+ */
+:root {
+  /* color: surfaces */
+  --color-bg: #0f0f0f;
+  --color-surface: #212121;
+  --color-surface-raised: #282828;
+  --color-surface-hover: #3f3f3f;
+  --color-overlay: rgba(0, 0, 0, 0.8);
+  --color-border: #3f3f3f;
+  --color-border-subtle: #303030;
+
+  /* color: text */
+  --color-text: #f1f1f1;
+  --color-text-secondary: #aaaaaa;
+  --color-text-inverse: #0f0f0f;
+
+  /* color: brand and states */
+  --color-brand: #ff4e2a;
+  --color-brand-2: #e01e5a;
+  --color-accent: #3ea6ff; /* links, focus, active controls */
+  --color-success: #2ba640;
+  --color-warning: #f9a825;
+  --color-danger: #ff4e45;
+  --color-chip: rgba(255, 255, 255, 0.1);
+  --color-chip-hover: rgba(255, 255, 255, 0.2);
+  --color-chip-active: #f1f1f1;
+  --color-chip-active-text: #0f0f0f;
+  --color-button: rgba(255, 255, 255, 0.1);
+  --color-button-hover: rgba(255, 255, 255, 0.2);
+  --color-primary-button: #f1f1f1;
+  --color-primary-button-text: #0f0f0f;
+
+  /* spacing: 4px grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* typography */
+  --font-family: "Roboto", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 36px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.45;
+
+  /* layout */
+  --header-height: 56px;
+  --sidebar-width: 240px;
+  --sidebar-mini-width: 72px;
+  --content-max-width: 2280px;
+  --watch-secondary-width: 402px;
+
+  /* elevation and motion */
+  --shadow-menu: 0 4px 32px rgba(0, 0, 0, 0.35);
+  --transition-fast: 120ms ease;
+  --focus-ring: 0 0 0 2px var(--color-accent);
+  --z-header: 100;
+  --z-sidebar: 90;
+  --z-menu: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --color-bg: #ffffff;
+  --color-surface: #f2f2f2;
+  --color-surface-raised: #ffffff;
+  --color-surface-hover: #e5e5e5;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-border: #d9d9d9;
+  --color-border-subtle: #e5e5e5;
+  --color-text: #0f0f0f;
+  --color-text-secondary: #606060;
+  --color-text-inverse: #ffffff;
+  --color-accent: #065fd4;
+  --color-chip: rgba(0, 0, 0, 0.05);
+  --color-chip-hover: rgba(0, 0, 0, 0.1);
+  --color-chip-active: #0f0f0f;
+  --color-chip-active-text: #ffffff;
+  --color-button: rgba(0, 0, 0, 0.05);
+  --color-button-hover: rgba(0, 0, 0, 0.1);
+  --color-primary-button: #0f0f0f;
+  --color-primary-button-text: #ffffff;
+  --shadow-menu: 0 4px 32px rgba(0, 0, 0, 0.12);
+  color-scheme: light;
+}

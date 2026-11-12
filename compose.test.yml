@@ -1,0 +1,36 @@
+# Test runner on top of compose.yml:
+#   docker compose -f compose.yml -f compose.test.yml run --rm tests            # pytest
+#   docker compose -f compose.yml -f compose.test.yml run --rm tests ruff check app tests
+# Uses the real Postgres / Redis / MinIO from the stack but a separate database (vidora_test)
+# and Redis DB 1. Source code is mounted read-only, so no rebuild is needed after edits.
+services:
+  tests:
+    image: vidora-backend-dev:latest
+    build:
+      context: ./backend
+      args:
+        INSTALL_DEV: "true"
+    env_file: .env
+    environment:
+      POSTGRES_DB: vidora_test
+      REDIS_DB: "1"
+      ENVIRONMENT: test
+      PYTHONDONTWRITEBYTECODE: "1"
+      RUFF_CACHE_DIR: /tmp/ruff
+    command: ["pytest", "-p", "no:cacheprovider"]
+    volumes:
+      - ./backend:/app:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks: [internal]
+    profiles: ["test"]

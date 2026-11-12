@@ -1,0 +1,141 @@
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-10) var(--space-4);
+}
+
+.thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 300ms ease;
+}
+.vcard--grid:hover .thumb img {
+  transform: scale(1.02);
+}
+.thumb--sm {
+  width: 168px;
+  border-radius: var(--radius-sm);
+}
+.thumb__placeholder {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-2);
+  height: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+.thumb__duration {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.vcard__body {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.vcard__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.vcard__title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: 22px;
+  margin-bottom: var(--space-1);
+}
+.vcard__meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.vcard__channel:hover {
+  color: var(--color-text);
+}
+
+.vcard--compact {
+  display: flex;
+  gap: var(--space-2);
+}
+.vcard--compact .vcard__title {
+  font-size: var(--font-size-sm);
+  line-height: 20px;
+}
+.vcard--compact .vcard__meta {
+  font-size: var(--font-size-xs);
+}
+
+.vcard--list {
+  display: flex;
+  gap: var(--space-4);
+}
+.vcard--list .thumb {
+  width: min(500px, 45%);
+}
+.vcard--list .vcard__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-regular);
+  line-height: 26px;
+}
+.vcard--list .vcard__channel {
+  margin: var(--space-3) 0;
+  font-size: var(--font-size-xs);
+}
+.vcard__desc {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.skeleton {
+  display: block;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.skeleton--circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.skeleton--line {
+  height: 14px;
+  width: 90%;
+  margin-bottom: 8px;
+}
+.skeleton--short {
+  width: 60%;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (max-width: 600px) {
+  .vcard--list {
+    flex-direction: column;
+  }
+  .vcard--list .thumb {
+    width: 100%;
+  }
+}

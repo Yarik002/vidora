@@ -1,0 +1,182 @@
+/* ---- Home ------------------------------------------------------------- */
+.chips-bar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 5;
+  display: flex;
+  gap: var(--space-3);
+  margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-6);
+  padding: var(--space-3) var(--space-6);
+  overflow-x: auto;
+  background: var(--color-bg);
+  scrollbar-width: none;
+}
+.load-more {
+  display: grid;
+  place-items: center;
+  min-height: 80px;
+}
+
+/* ---- Auth ------------------------------------------------------------- */
+.auth-page {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - var(--header-height));
+  padding: var(--space-6);
+}
+.auth-card {
+  width: min(450px, 100%);
+  padding: var(--space-10) var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+.auth-card h1 {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-regular);
+}
+.auth-card > p {
+  margin-bottom: var(--space-6);
+}
+.auth-card__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-6);
+}
+.auth-link {
+  color: var(--color-accent);
+}
+
+/* ---- Forms: radio / checkbox lists ------------------------------------ */
+.radio-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: none;
+}
+.radio-list__item,
+.check-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  cursor: pointer;
+}
+.radio-list__item--rich span {
+  display: grid;
+}
+.radio-list input,
+.check-list input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent);
+}
+.check-list {
+  display: grid;
+  margin-bottom: var(--space-3);
+}
+.save-dialog__create {
+  margin-top: var(--space-3);
+}
+
+/* ---- Upload ----------------------------------------------------------- */
+.dropzone {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-10) var(--space-6);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.dropzone--over {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.dropzone__icon {
+  display: grid;
+  place-items: center;
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+.dropzone__title {
+  font-size: var(--font-size-md);
+}
+.dropzone__hint {
+  font-size: var(--font-size-xs);
+}
+.upload__layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-6);
+}
+.upload__section {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+}
+.upload__side {
+  display: grid;
+  align-content: start;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.upload__preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  color: var(--color-text-secondary);
+}
+.upload__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.upload__info {
+  margin: 0;
+  padding: var(--space-4);
+}
+.upload__info dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+.upload__info dd {
+  margin: 0 0 var(--space-3);
+  word-break: break-all;
+}
+.upload__footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg);
+}
+.upload__status {
+  flex: 1;
+  display: grid;
+  gap: var(--space-2);
+}
+.upload__ok {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-success);
+}
+
+@media (max-width: 800px) {
+  .upload__layout {
+    grid-template-columns: 1fr;
+  }
+}
