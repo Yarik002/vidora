@@ -21,6 +21,11 @@ RUN if [ "$INSTALL_DEV" = "true" ]; then REQ=requirements-dev.txt; else REQ=requ
 
 COPY --chown=app:app . .
 
+# Scratch space for ffmpeg (a named volume is mounted here in the worker). It must exist in the
+# image owned by `app`: Docker initializes an empty named volume with this ownership. Otherwise
+# the volume is root-owned and tempfile silently falls back to the small /tmp tmpfs.
+RUN mkdir -p /work && chown app:app /work
+
 USER app
 EXPOSE 8000
 
