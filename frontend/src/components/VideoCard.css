@@ -139,3 +139,17 @@
     width: 100%;
   }
 }
+
+/* playlist cover: stacked look */
+.thumb--playlist {
+  box-shadow: 0 -6px 0 -2px var(--color-surface-hover);
+  margin-top: 6px;
+}
+.thumb__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.vcard__text--playlist {
+  margin-top: var(--space-3);
+}

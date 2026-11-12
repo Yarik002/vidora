@@ -1,0 +1,100 @@
+.channel {
+  max-width: 1284px;
+  margin: 0 auto;
+  padding: 0 var(--space-6) var(--space-6);
+}
+.channel__banner {
+  height: 172px;
+  margin-top: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+.channel__header {
+  display: flex;
+  gap: var(--space-6);
+  align-items: center;
+  margin: var(--space-6) 0 var(--space-2);
+}
+.channel__info {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.channel__info h1 {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+}
+.channel__handle {
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+}
+.channel__desc {
+  max-width: 600px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.channel__actions {
+  margin-top: var(--space-2);
+}
+.channel__tabs {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.channel__tab {
+  height: 48px;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  border-bottom: 2px solid transparent;
+}
+.channel__tab:hover {
+  color: var(--color-text);
+  border-bottom-color: var(--color-text-secondary);
+}
+.channel__tab.is-active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-text);
+}
+.channel__content {
+  padding-top: var(--space-6);
+}
+.channel__sort {
+  margin-bottom: var(--space-6);
+}
+.channel__about {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 760px;
+}
+.channel__about h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin-top: var(--space-3);
+}
+.channel__about p {
+  white-space: pre-wrap;
+}
+.color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+.color-swatch--active {
+  border-color: var(--color-text);
+}
+
+@media (max-width: 700px) {
+  .channel__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .channel__header .avatar {
+    width: 88px !important;
+    height: 88px !important;
+  }
+}
