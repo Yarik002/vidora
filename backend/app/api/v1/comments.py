@@ -4,7 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import current_user, current_user_optional
+from app.api.deps import current_user, current_user_optional, user_rate_limited
 from app.db.session import get_session
 from app.models import User
 from app.schemas.comment import CommentIn, CommentOut, CommentReactionIn, CommentUpdate
@@ -18,7 +18,7 @@ router = APIRouter(tags=["comments"])
 async def list_comments(
     video_id: uuid.UUID,
     sort: Literal["top", "new"] = "top",
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=10_000),
     limit: int = Query(default=20, ge=1, le=100),
     user: User | None = Depends(current_user_optional),
     session: AsyncSession = Depends(get_session),
@@ -26,7 +26,12 @@ async def list_comments(
     return await comment_service.list_comments(session, video_id, user, sort, offset, limit)
 
 
-@router.post("/videos/{video_id}/comments", response_model=CommentOut, status_code=201)
+@router.post(
+    "/videos/{video_id}/comments",
+    response_model=CommentOut,
+    status_code=201,
+    dependencies=[Depends(user_rate_limited("comment", 20, 60))],
+)
 async def create_comment(
     video_id: uuid.UUID,
     data: CommentIn,
@@ -39,7 +44,7 @@ async def create_comment(
 @router.get("/comments/{comment_id}/replies", response_model=Page[CommentOut])
 async def list_replies(
     comment_id: uuid.UUID,
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=10_000),
     limit: int = Query(default=20, ge=1, le=100),
     user: User | None = Depends(current_user_optional),
     session: AsyncSession = Depends(get_session),

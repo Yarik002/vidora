@@ -39,8 +39,8 @@ async def current_user_optional(
     bearer: str | None = Depends(oauth2_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> User | None:
-    # If an Authorization header is present, cookies are ignored entirely:
-    # that is what makes skipping CSRF checks for bearer requests safe.
+    # With a Bearer token cookies are ignored entirely (other schemes fall back to cookies),
+    # which is what makes skipping CSRF checks for Bearer requests safe (see core/csrf.py).
     token = bearer if bearer else request.cookies.get(ACCESS_COOKIE)
     if not token:
         return None
@@ -82,6 +82,16 @@ def rate_limited(name: str, limit_attr: str) -> Callable:
         if not await rate_limit_hit(
             f"{name}:{ip}", getattr(settings, limit_attr), settings.rate_limit_window_sec
         ):
+            raise TooManyRequests()
+
+    return checker
+
+
+def user_rate_limited(name: str, limit: int, window_sec: int) -> Callable:
+    """Per-account limit for actions that create content (anti-spam), independent of IP."""
+
+    async def checker(user: User = Depends(current_user)) -> None:
+        if not await rate_limit_hit(f"{name}:{user.id}", limit, window_sec):
             raise TooManyRequests()
 
     return checker

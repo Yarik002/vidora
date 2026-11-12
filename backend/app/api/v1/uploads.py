@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import current_user, public_host
+from app.api.deps import current_user, public_host, user_rate_limited
 from app.db.session import get_session
 from app.models import User
 from app.schemas.video import UploadComplete, UploadCreate, UploadOut, VideoStatusOut
@@ -17,6 +17,7 @@ router = APIRouter(prefix="/uploads", tags=["uploads"])
     response_model=UploadOut,
     status_code=201,
     summary="Start an upload: returns presigned URLs, one per 10 MB part",
+    dependencies=[Depends(user_rate_limited("upload", 30, 3600))],
 )
 async def create_upload(
     data: UploadCreate,

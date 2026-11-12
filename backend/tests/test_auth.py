@@ -166,3 +166,23 @@ async def test_login_rate_limit(client: httpx.AsyncClient, monkeypatch: pytest.M
     assert codes[:3] == [401, 401, 401]
     assert codes[3:] == [429, 429]
     await get_redis().delete("rl:login:127.0.0.1")
+
+
+async def test_per_account_lockout_after_failed_logins(users: Users, client: httpx.AsyncClient) -> None:
+    """Even with an unlimited per-IP budget, one account can't be brute-forced."""
+    from app.services.auth_service import MAX_FAILED_LOGINS
+
+    alice = await users.new()
+    login = alice.me["username"]  # type: ignore[attr-defined]
+    for _ in range(MAX_FAILED_LOGINS):
+        r = await client.post("/api/v1/auth/login", json={"login": login, "password": "Wrong-pass-1"})
+        assert r.status_code == 401
+    # now even the right password is refused for a while
+    r = await client.post("/api/v1/auth/login", json={"login": login.upper(), "password": PASSWORD})
+    assert r.status_code == 429
+    from app.core.redis import get_redis
+
+    await get_redis().delete(f"rl:loginfail:{login.lower()}")
+    assert (
+        await client.post("/api/v1/auth/login", json={"login": login, "password": PASSWORD})
+    ).status_code == 200
