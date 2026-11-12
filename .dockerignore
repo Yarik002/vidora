@@ -1,0 +1,6 @@
+# Context for deploy/web.Dockerfile is the repo root: send only what it needs.
+*
+!frontend/
+!deploy/caddy/
+frontend/node_modules
+frontend/dist

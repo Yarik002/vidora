@@ -1,0 +1,28 @@
+[project]
+name = "vidora-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "SIM"]
+ignore = [
+  "B008",   # FastAPI Depends() in defaults is the idiom
+  "S101",   # assert is fine in tests
+  "S603",   # subprocess with fixed argv lists (ffmpeg/ffprobe)
+  "S607",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S311"]
+"app/scripts/*" = ["S311"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+addopts = "-q"
