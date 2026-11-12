@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import Select, and_, case, delete, func, or_, select
+from sqlalchemy import Select, and_, case, delete, func, literal, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -93,9 +93,16 @@ async def list_subscriptions_feed(
 
 
 async def search(session: AsyncSession, q: str, offset: int, limit: int) -> list[CardRow]:
-    """Full-text search (russian stemming) + trigram similarity for typos and partial words."""
+    """Full-text search (russian stemming) + trigram word similarity for typos and partial words.
+
+    `q <% title` (word_similarity) compares the query with the best matching *part* of the title,
+    unlike `%` which compares with the whole title and misses typos in long titles. Both the
+    tsvector and the trigram conditions are served by GIN indexes.
+    """
+    # Default 0.6 is too strict for one-letter typos in short Russian words; scoped to this transaction.
+    await session.execute(text("SET LOCAL pg_trgm.word_similarity_threshold = 0.4"))
     tsq = func.websearch_to_tsquery("russian", q)
-    similarity = func.similarity(Video.title, q)
+    similarity = func.word_similarity(q, Video.title)
     rank = func.ts_rank_cd(Video.search_vector, tsq) + similarity
     stmt = (
         card_query()
@@ -103,7 +110,7 @@ async def search(session: AsyncSession, q: str, offset: int, limit: int) -> list
             listed_condition(),
             or_(
                 Video.search_vector.op("@@")(tsq),
-                Video.title.op("%")(q),
+                literal(q).op("<%")(Video.title),
                 Video.title.ilike(f"%{_escape_like(q)}%"),
             ),
         )

@@ -38,3 +38,6 @@ submission/
 Thumbs.db
 .idea/
 .vscode/
+
+# typescript incremental build info
+*.tsbuildinfo

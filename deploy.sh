@@ -133,7 +133,7 @@ step "Creating the admin account (if missing)"
 compose run --rm --no-deps -T api python -m app.scripts.create_admin
 
 if $DEMO; then
-  step "Loading demo data (videos are generated with ffmpeg, takes ~1-2 minutes)"
+  step "Loading demo data (14 videos are generated and transcoded with ffmpeg, takes 2-5 minutes)"
   compose run --rm --no-deps -T worker python -m app.scripts.seed
 fi
 
@@ -152,6 +152,6 @@ fi
 echo "  API docs: /docs"
 echo "  Admin:    login '$(env_get ADMIN_USERNAME)'  password: $(show ADMIN_PASSWORD)"
 if $DEMO; then
-  echo "  Demo:     logins 'moderator', 'alice', 'bob', 'carol'  password: $(show DEMO_PASSWORD)"
+  echo "  Demo:     logins 'moderator', 'alice', 'bob', 'carol', 'dave'  password: $(show DEMO_PASSWORD)"
 fi
 echo "  Check the full scenario: python3 scripts/e2e.py"
