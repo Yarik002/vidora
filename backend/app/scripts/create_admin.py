@@ -29,7 +29,9 @@ async def main() -> int:
             print(f"create_admin: user '{username}' already exists, role=admin")
         else:
             try:
-                data = RegisterIn(email=email, username=username, password=password, channel_title="Vidora Admin")
+                data = RegisterIn(
+                    email=email, username=username, password=password, channel_title="Vidora Admin"
+                )
             except ValidationError as exc:
                 # Never print input values: the password is one of them.
                 fields = ", ".join(str(e["loc"][0]) for e in exc.errors())
