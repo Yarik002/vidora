@@ -156,9 +156,23 @@ def main() -> int:
         if args.out.exists():
             args.out.unlink()
         with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+            # Zips made on Windows carry no unix permissions: after unzip on Linux ./deploy.sh would
+            # be "Permission denied". Take the modes from git (100755 = executable).
+            executable = {
+                line.split("	", 1)[1]
+                for line in subprocess.run(
+                    ["git", "ls-files", "-s"], cwd=repo, capture_output=True, text=True, check=True
+                ).stdout.splitlines()
+                if line.startswith("100755")
+            }
             for path in sorted(repo.rglob("*")):
                 if path.is_file():
-                    z.write(path, Path("repo") / path.relative_to(repo))
+                    rel = path.relative_to(repo).as_posix()
+                    info = zipfile.ZipInfo.from_file(path, f"repo/{rel}")
+                    info.create_system = 3  # unix, so unzip applies the mode bits below
+                    info.external_attr = (0o100755 if rel in executable else 0o100644) << 16
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    z.writestr(info, path.read_bytes())
             for path in jsonl:
                 z.write(path, Path("ai-transcripts") / path.relative_to(tdir))
             info = (
