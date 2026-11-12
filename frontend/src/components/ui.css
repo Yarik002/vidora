@@ -269,3 +269,17 @@
   font-size: var(--font-size-xl);
   color: var(--color-text);
 }
+
+/* ---- Toast ------------------------------------------------------------ */
+.toast {
+  position: fixed;
+  left: var(--space-6);
+  bottom: var(--space-6);
+  z-index: var(--z-toast);
+  max-width: min(480px, calc(100vw - 48px));
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-button);
+  color: var(--color-primary-button-text);
+  box-shadow: var(--shadow-menu);
+}

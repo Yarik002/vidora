@@ -91,7 +91,14 @@ export async function startUpload(
             report();
             break;
           } catch (err) {
-            if (cancelled || ++attempt >= 3) throw err;
+            if (cancelled) throw err;
+            if (++attempt >= 3) {
+              // give up on the whole upload: stop other parts and abort it on the server
+              cancelled = true;
+              xhrs.forEach((x) => x.abort());
+              api(`/uploads/${upload.upload_id}`, { method: "DELETE" }).catch(() => undefined);
+              throw err;
+            }
             await new Promise((r) => setTimeout(r, 1000 * attempt)); // retry a flaky part
           }
         }

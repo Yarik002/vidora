@@ -10,6 +10,7 @@ export function useApi<T>(path: string | null) {
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
+    setData(null); // never show the previous resource under a new URL
     if (path === null) return;
     const ctrl = new AbortController();
     setLoading(true);
@@ -48,7 +49,11 @@ export function usePaged<T>(basePath: string | null, pageSize = 24) {
       const page = await api<Page<T>>(`${path}${sep}offset=${offsetRef.current}&limit=${pageSize}`);
       if (pathRef.current !== path) return; // a newer query replaced this one
       offsetRef.current += page.items.length;
-      setItems((prev) => [...prev, ...page.items]);
+      // items added locally (a new comment) shift server offsets: drop duplicates by id
+      setItems((prev) => {
+        const seen = new Set(prev.map((x) => (x as { id?: string }).id));
+        return [...prev, ...page.items.filter((x) => !seen.has((x as { id?: string }).id))];
+      });
       setHasMore(page.has_more);
     } catch (e) {
       setError(errorText(e));
