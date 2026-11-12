@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import current_user, public_host, require_admin, require_moderator
+from app.api.deps import current_user, public_host, require_admin, require_moderator, user_rate_limited
 from app.db.session import get_session
 from app.models import ReportStatus, User
 from app.schemas.common import Message, Page
@@ -26,7 +26,13 @@ router = APIRouter(prefix="/moderation", tags=["moderation"])
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-@reports_router.post("", response_model=ReportCreated, status_code=201, summary="Report a video or a comment")
+@reports_router.post(
+    "",
+    response_model=ReportCreated,
+    status_code=201,
+    summary="Report a video or a comment",
+    dependencies=[Depends(user_rate_limited("report", 20, 3600))],
+)
 async def create_report(
     data: ReportIn, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)
 ) -> ReportCreated:
@@ -37,7 +43,7 @@ async def create_report(
 async def list_reports(
     request: Request,
     status: ReportStatus = ReportStatus.OPEN,
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=10_000),
     limit: int = Query(default=30, ge=1, le=100),
     _: User = Depends(require_moderator),
     session: AsyncSession = Depends(get_session),
@@ -72,7 +78,7 @@ async def restore_video(
 @router.get("/videos/hidden", response_model=Page[VideoCard])
 async def hidden_videos(
     request: Request,
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=10_000),
     limit: int = Query(default=30, ge=1, le=100),
     _: User = Depends(require_moderator),
     session: AsyncSession = Depends(get_session),
@@ -104,7 +110,7 @@ async def dismiss_report(
 
 @router.get("/actions", response_model=Page[ModerationActionOut], summary="Moderation log")
 async def actions(
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=10_000),
     limit: int = Query(default=50, ge=1, le=100),
     _: User = Depends(require_moderator),
     session: AsyncSession = Depends(get_session),
@@ -115,7 +121,7 @@ async def actions(
 @admin_router.get("/users", response_model=Page[AdminUserOut])
 async def list_users(
     q: str | None = Query(default=None, max_length=100),
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=10_000),
     limit: int = Query(default=50, ge=1, le=100),
     _: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),

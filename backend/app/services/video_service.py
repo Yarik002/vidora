@@ -10,6 +10,8 @@ from app.core.errors import AppError, Forbidden, NotFound
 from app.core.redis import first_seen
 from app.models import (
     FileKind,
+    Playlist,
+    PlaylistItem,
     Role,
     Subscription,
     User,
@@ -122,6 +124,12 @@ async def delete_video(session: AsyncSession, video_id: uuid.UUID, user: User) -
     audit(
         session, "video.delete", actor_id=user.id, entity_type="video", entity_id=video.id, title=video.title
     )
+    # playlist_items go away by ON DELETE CASCADE; keep the denormalized counters in sync.
+    await session.execute(
+        update(Playlist)
+        .where(Playlist.id.in_(select(PlaylistItem.playlist_id).where(PlaylistItem.video_id == video.id)))
+        .values(items_count=Playlist.items_count - 1)
+    )
     await session.delete(video)
     await session.commit()
     # Storage cleanup after the DB commit: a crash here leaves orphan objects, never broken rows.
@@ -143,8 +151,11 @@ async def stream_url(
     files.sort(key=lambda f: f.height or 0, reverse=True)
     chosen = next((f for f in files if f.quality == quality), files[0])
     s = get_settings()
-    ttl = s.playback_url_ttl_sec + int(video.duration_seconds or 0)
-    return storage.presign_get(host, chosen.bucket, chosen.object_key, ttl, content_type="video/mp4")
+    # Short fixed TTL: revoking access or hiding a video takes effect within minutes.
+    # The player asks /stream again when a signed URL expires mid-playback.
+    return storage.presign_get(
+        host, chosen.bucket, chosen.object_key, s.playback_url_ttl_sec, content_type="video/mp4"
+    )
 
 
 async def register_view(

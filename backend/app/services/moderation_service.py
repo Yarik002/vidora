@@ -61,7 +61,7 @@ async def create_report(session: AsyncSession, user: User, data: ReportIn) -> Re
         await session.commit()
     except IntegrityError as exc:  # partial unique index: one open report per user per video
         await session.rollback()
-        raise Conflict("You have already reported this video", code="already_reported") from exc
+        raise Conflict("You have already reported this", code="already_reported") from exc
     return ReportCreated(id=report.id, status=report.status)
 
 
@@ -83,10 +83,9 @@ async def list_reports(
     rows = (await session.execute(stmt)).all()
     video_ids = {r[0].video_id for r in rows if r[0].video_id}
     cards = {}
-    for vid in video_ids:
-        row = await videos_repo.get_with_channel(session, vid)
-        if row:
-            cards[vid] = row
+    if video_ids:  # one query for all reported videos (no N+1)
+        found = await session.execute(videos_repo.card_query().where(Video.id.in_(video_ids)))
+        cards = {v.id: (v, key) for v, key in found.unique().all()}
     # how many open reports each target has (moderators see the most reported first-hand)
     counts: dict[uuid.UUID, int] = {}
     targets = [r[0].video_id or r[0].comment_id for r in rows]
@@ -192,7 +191,7 @@ async def set_video_hidden(
 async def delete_comment(
     session: AsyncSession, moderator: User, comment_id: uuid.UUID, reason: str, report_id=None
 ) -> None:
-    comment = await session.get(Comment, comment_id)
+    comment = await session.get(Comment, comment_id, with_for_update=True)
     if comment is None or comment.deleted_at is not None:
         raise NotFound("Comment not found", code="comment_not_found")
     _record(

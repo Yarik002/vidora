@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Comments } from "../components/Comments";
 import { Icon } from "../components/Icon";
 import { Player } from "../components/Player";
+import { toastError } from "../components/Toast";
 import { ReportDialog } from "../components/ReportDialog";
 import { SaveDialog } from "../components/SaveDialog";
 import { Avatar, Button, EmptyState, Menu, PageSpinner, Spinner } from "../components/ui";
@@ -33,6 +34,8 @@ function SubscribeButton({ video, onChange }: { video: VideoDetail; onChange: (v
         method: video.is_subscribed ? "DELETE" : "PUT",
       });
       onChange({ is_subscribed: r.subscribed, channel: { ...video.channel, subscribers_count: r.subscribers_count } });
+    } catch (err) {
+      toastError(err);
     } finally {
       setBusy(false);
     }
@@ -87,8 +90,9 @@ function Actions({ video, onChange }: { video: VideoDetail; onChange: (v: Partia
     });
     try {
       onChange(await api(`/videos/${video.id}/reaction`, { method: "PUT", body: { value: next } }));
-    } catch {
+    } catch (err) {
       onChange(prev);
+      toastError(err);
     }
   };
 
@@ -158,7 +162,9 @@ export function Watch() {
     if (!video || video.status === "ready" || video.status === "failed") return;
     const t = window.setTimeout(async () => {
       try {
-        setData(await api<VideoDetail>(`/videos/${id}`));
+        const fresh = await api<VideoDetail>(`/videos/${id}`);
+        // the user may have navigated to another video meanwhile
+        setData((current) => (current && current.id === fresh.id ? fresh : current));
       } catch {
         /* keep the old state */
       }

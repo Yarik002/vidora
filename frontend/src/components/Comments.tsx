@@ -7,6 +7,7 @@ import { useInfiniteScroll, usePaged } from "../lib/hooks";
 import type { Comment } from "../lib/types";
 import { Icon } from "./Icon";
 import { ReportDialog } from "./ReportDialog";
+import { toastError } from "./Toast";
 import { Avatar, Button, IconButton, Menu, Spinner } from "./ui";
 import "./Comments.css";
 
@@ -118,16 +119,28 @@ function CommentItem({
   const like = async () => {
     if (!user) return navigate("/login");
     const value = state.my_reaction === 1 ? 0 : 1;
-    const r = await api<{ likes_count: number; my_reaction: number }>(`/comments/${state.id}/reaction`, {
-      method: "PUT",
-      body: { value },
-    });
-    setState({ ...state, ...r });
+    try {
+      const r = await api<{ likes_count: number; my_reaction: number }>(`/comments/${state.id}/reaction`, {
+        method: "PUT",
+        body: { value },
+      });
+      setState((s) => ({ ...s, ...r }));
+    } catch (err) {
+      toastError(err);
+    }
   };
 
   const remove = async () => {
     if (!window.confirm("Удалить комментарий?")) return;
-    await api(`/comments/${state.id}`, { method: "DELETE" });
+    try {
+      await api(`/comments/${state.id}`, { method: "DELETE" });
+    } catch (err) {
+      return toastError(err);
+    }
+    if (state.parent_id === null && state.replies_count > 0) {
+      // the server keeps the thread: show it as deleted right here
+      setState((s) => ({ ...s, is_deleted: true, body: null, author: null, can_edit: false, can_delete: false }));
+    }
     onDeleted(state.id);
   };
 

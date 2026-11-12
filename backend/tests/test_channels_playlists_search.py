@@ -115,3 +115,20 @@ async def test_history_and_liked_pages(users: Users) -> None:
 
     studio = (await owner.get("/api/v1/me/videos")).json()["items"]
     assert {v["id"] for v in studio} == {str(v1), str(v2)}
+
+
+async def test_deleting_video_keeps_playlist_counter_right(users: Users) -> None:
+    """Regression (code review): cascade removed playlist items but not the counter."""
+    owner = await users.new()
+    v1, v2 = await make_ready_video(owner), await make_ready_video(owner)
+    pl = (await owner.post("/api/v1/playlists", json={"title": "p"})).json()
+    for vid in (v1, v2):
+        await owner.post(f"/api/v1/playlists/{pl['id']}/videos", json={"video_id": str(vid)})
+    assert (await owner.delete(f"/api/v1/videos/{v1}")).status_code == 200
+    detail = (await owner.get(f"/api/v1/playlists/{pl['id']}")).json()
+    assert detail["items_count"] == 1 and len(detail["videos"]) == 1
+
+
+async def test_whitespace_search_is_rejected(client: httpx.AsyncClient) -> None:
+    """Regression (code review): '   ' turned into ILIKE '%%' and returned everything."""
+    assert (await client.get("/api/v1/search", params={"q": "   "})).status_code == 422

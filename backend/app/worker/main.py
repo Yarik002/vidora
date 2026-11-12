@@ -6,7 +6,7 @@ from arq import cron
 from arq.connections import RedisSettings
 
 from app.core.config import get_settings
-from app.worker.tasks import MAX_TRIES, cleanup_stale_uploads, process_video
+from app.worker.tasks import MAX_TRIES, cleanup_stale_uploads, process_video, requeue_stuck
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -28,7 +28,10 @@ class WorkerSettings:
 
     functions = [process_video]
     on_startup = startup
-    cron_jobs = [cron(cleanup_stale_uploads, minute=7, run_at_startup=False)]
+    cron_jobs = [
+        cron(cleanup_stale_uploads, minute=7, run_at_startup=False),
+        cron(requeue_stuck, minute=set(range(0, 60, 5)), run_at_startup=True),
+    ]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     max_jobs = 2
     max_tries = MAX_TRIES

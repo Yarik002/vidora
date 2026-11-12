@@ -12,12 +12,13 @@ def get_redis() -> Redis:
 
 async def rate_limit_hit(key: str, limit: int, window_sec: int) -> bool:
     """Fixed-window counter. Returns True if the request is allowed."""
-    redis = get_redis()
     full_key = f"rl:{key}"
-    count = await redis.incr(full_key)
-    if count == 1:
-        await redis.expire(full_key, window_sec)
-    return count <= limit
+    # SET NX EX + INCR in one round trip: the key always gets a TTL, even if the process dies.
+    async with get_redis().pipeline(transaction=True) as pipe:
+        pipe.set(full_key, 0, ex=window_sec, nx=True)
+        pipe.incr(full_key)
+        _, count = await pipe.execute()
+    return int(count) <= limit
 
 
 async def first_seen(key: str, ttl_sec: int) -> bool:

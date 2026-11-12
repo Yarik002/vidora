@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from arq import Retry
 from sqlalchemy import delete, select
@@ -158,6 +158,31 @@ async def process_video(ctx: dict, video_id: str, job_id: str) -> str:
         await _set_failed(vid, jid, "Ошибка обработки, попробуйте загрузить ещё раз")
         return "failed"
     return "ready"
+
+
+async def requeue_stuck(ctx: dict) -> int:
+    """Every few minutes: videos that are `uploaded` but never got processed (Redis was down when
+    the job should have been queued) are queued again. The job id makes enqueueing idempotent."""
+    from app.core.queue import enqueue_processing
+
+    border = datetime.now(UTC) - timedelta(minutes=5)
+    async with SessionLocal() as session:
+        stuck = (
+            await session.execute(
+                select(Video.id, ProcessingJob.id)
+                .join(ProcessingJob, ProcessingJob.video_id == Video.id)
+                .where(
+                    Video.status == VideoStatus.UPLOADED,
+                    Video.updated_at < border,
+                    ProcessingJob.status == JobStatus.QUEUED,
+                )
+            )
+        ).all()
+    for video_id, job_id in stuck:
+        await enqueue_processing(str(video_id), str(job_id))
+    if stuck:
+        log.warning("re-queued %d stuck videos", len(stuck))
+    return len(stuck)
 
 
 async def cleanup_stale_uploads(ctx: dict) -> int:

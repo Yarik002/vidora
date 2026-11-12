@@ -5,6 +5,7 @@ import { useApi } from "../lib/hooks";
 import { applyTheme, getTheme, type Theme } from "../lib/theme";
 import type { ChannelBrief } from "../lib/types";
 import { Icon, type IconName } from "./Icon";
+import { Toaster } from "./Toast";
 import { Avatar, IconButton, Logo, Menu } from "./ui";
 import "./Layout.css";
 
@@ -238,6 +239,7 @@ export function Layout() {
       <main className="main">
         <Outlet />
       </main>
+      <Toaster />
     </div>
   );
 }

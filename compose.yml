@@ -1,11 +1,31 @@
 name: vidora
 
+# Secrets are passed per service, never the whole .env: api and worker don't get the MinIO root
+# keys, the database owner password or the admin/demo passwords.
+x-backend-env: &backend_env
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  POSTGRES_DB: ${POSTGRES_DB:-vidora}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?run scripts/gen_env.sh first}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?run scripts/gen_env.sh first}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?run scripts/gen_env.sh first}
+  BUCKET_RAW: ${BUCKET_RAW:-vidora-raw}
+  BUCKET_MEDIA: ${BUCKET_MEDIA:-vidora-media}
+  JWT_SECRET: ${JWT_SECRET:?run scripts/gen_env.sh first}
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-1024}
+  SITE_ADDRESS: ${SITE_ADDRESS:-https://}
+
+# api and worker use a DML-only role (see backend/app/scripts/db_roles.py)
+x-app-db: &app_db
+  POSTGRES_USER: ${APP_DB_USER:-vidora_app}
+  POSTGRES_PASSWORD: ${APP_DB_PASSWORD:?run scripts/gen_env.sh first}
+
 # Shared settings for every container built from backend/Dockerfile.
 x-backend: &backend
   image: vidora-backend:latest
   build:
     context: ./backend
-  env_file: .env
+  environment:
+    <<: [*backend_env, *app_db]
   restart: unless-stopped
   read_only: true
   tmpfs:
@@ -91,7 +111,14 @@ services:
   migrate:
     <<: *backend
     restart: "no"
-    command: ["alembic", "upgrade", "head"]
+    # Runs as the database owner: schema migrations, then the least-privilege app role.
+    command: ["sh", "-c", "alembic upgrade head && python -m app.scripts.db_roles"]
+    environment:
+      <<: *backend_env
+      POSTGRES_USER: ${POSTGRES_USER:-vidora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen_env.sh first}
+      APP_DB_USER: ${APP_DB_USER:-vidora_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?run scripts/gen_env.sh first}
     healthcheck:
       disable: true
     depends_on:
@@ -112,6 +139,7 @@ services:
     <<: *backend
     command: ["arq", "app.worker.main.WorkerSettings"]
     environment:
+      <<: [*backend_env, *app_db]
       TMPDIR: /work
     volumes:
       - workdata:/work
@@ -137,6 +165,8 @@ services:
     restart: unless-stopped
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-https://}
+      BUCKET_RAW: ${BUCKET_RAW:-vidora-raw}
+      BUCKET_MEDIA: ${BUCKET_MEDIA:-vidora-media}
       TLS_KIND: ${TLS_KIND:-internal}
       ACME_EMAIL: ${ACME_EMAIL:-}
       HSTS_MODE: ${HSTS_MODE:-off}

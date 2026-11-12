@@ -72,9 +72,9 @@ export function Player({ video, onFirstPlay }: { video: VideoDetail; onFirstPlay
           }
         }}
         onError={(e) => {
-          // most likely an expired signed URL after a long pause: fetch a fresh one once
+          // most likely an expired signed URL (long pause or a tab left open): ask /stream again
           const el = e.currentTarget;
-          if (el.currentTime > 0 && nonce < 3) {
+          if (nonce < 3) {
             resumeAt.current = el.currentTime;
             setNonce((n) => n + 1);
           }

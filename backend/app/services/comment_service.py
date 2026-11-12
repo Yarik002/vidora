@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert
@@ -37,7 +37,7 @@ def _present(c: Comment, video: Video, user: User | None, my: dict[uuid.UUID, in
         likes_count=c.likes_count,
         replies_count=c.replies_count,
         created_at=c.created_at,
-        edited=c.updated_at - c.created_at > timedelta(seconds=2),
+        edited=c.edited_at is not None,
         is_deleted=deleted,
         is_video_owner=not deleted and c.author.channel.id == video.channel_id,
         my_reaction=my.get(c.id, 0),
@@ -89,7 +89,8 @@ async def create(session: AsyncSession, video_id: uuid.UUID, user: User, data: C
     video = await get_viewable_video(session, video_id, user)
     parent_id = None
     if data.parent_id is not None:
-        parent = await session.get(Comment, data.parent_id)
+        # Lock the parent: a concurrent hard delete must not race with this reply.
+        parent = await session.get(Comment, data.parent_id, with_for_update=True)
         if parent is None or parent.video_id != video.id or parent.deleted_at is not None:
             raise NotFound("Parent comment not found", code="comment_not_found")
         # One level of nesting like YouTube: a reply to a reply goes to the same thread.
@@ -115,6 +116,7 @@ async def edit(session: AsyncSession, comment_id: uuid.UUID, user: User, data: C
     if comment.author_id != user.id or comment.deleted_at is not None:
         raise NotFound("Comment not found", code="comment_not_found")
     comment.body = data.body
+    comment.edited_at = datetime.now(UTC)
     await session.commit()
     fresh = await comments_repo.get(session, comment.id)
     video = await session.get(Video, comment.video_id)
@@ -125,6 +127,9 @@ async def edit(session: AsyncSession, comment_id: uuid.UUID, user: User, data: C
 async def remove(session: AsyncSession, comment_id: uuid.UUID, user: User) -> Comment:
     """Author, video owner or staff. A comment with replies is soft-deleted to keep the thread."""
     comment = await _get_visible_comment(session, comment_id, user)
+    # Re-read under a row lock: replies_count decides soft vs hard delete.
+    await session.execute(select(Comment.id).where(Comment.id == comment.id).with_for_update())
+    await session.refresh(comment, attribute_names=["replies_count", "deleted_at", "parent_id"])
     video = await session.get(Video, comment.video_id)
     assert video is not None
     if comment.deleted_at is not None or not (

@@ -66,15 +66,37 @@
 		reverse_proxy api:8000
 	}
 
-	# Same-origin gateway to MinIO for presigned URLs (upload parts and playback).
-	# The prefix is stripped; the Host header is preserved, so S3 signatures stay valid.
+	# Same-origin gateway to MinIO for presigned URLs. Only what the app needs passes:
+	# PUT of upload parts into the raw bucket and GET/HEAD of processed media. Everything else
+	# (other buckets, listing, MinIO admin API) is 404. The prefix is stripped and the Host header
+	# is preserved, so the S3 signature MinIO checks is exactly what the API signed.
 	# One request = one multipart part (10 MB), so 16 MB is a hard cap per request.
 	handle_path /storage/* {
-		request_body {
-			max_size 16MB
+		@upload_part {
+			method PUT
+			path /{$BUCKET_RAW:vidora-raw}/uploads/*
 		}
-		reverse_proxy minio:9000 {
-			flush_interval -1
+		@media {
+			method GET HEAD
+			path /{$BUCKET_MEDIA:vidora-media}/videos/*
+		}
+		header {
+			Content-Security-Policy "default-src 'none'; sandbox"
+			-Server
+		}
+		handle @upload_part {
+			request_body {
+				max_size 16MB
+			}
+			reverse_proxy minio:9000
+		}
+		handle @media {
+			reverse_proxy minio:9000 {
+				flush_interval -1
+			}
+		}
+		handle {
+			respond 404
 		}
 	}
 

@@ -3,10 +3,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.errors import Conflict, Forbidden, Unauthorized
+from app.core.errors import Conflict, Forbidden, TooManyRequests, Unauthorized
+from app.core.redis import get_redis
 from app.core.security import (
     create_access_token,
     hash_password,
@@ -24,6 +26,9 @@ AVATAR_COLORS = ["#3ea6ff", "#ff4e45", "#2ba640", "#f9a825", "#ab47bc", "#ef6c00
 # A rotated token presented again within this window is treated as a benign race
 # (two tabs refreshing at once), not as theft.
 REUSE_GRACE = timedelta(seconds=15)
+# Per-account brute-force guard (the per-IP limit alone doesn't stop a distributed guesser).
+MAX_FAILED_LOGINS = 10
+FAILED_LOGIN_WINDOW_SEC = 15 * 60
 
 
 @dataclass
@@ -72,7 +77,11 @@ async def register(
         email=data.email, username=data.username, password_hash=hash_password(data.password), role=role
     )
     session.add(user)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:  # two concurrent registrations passed the check above
+        await session.rollback()
+        raise Conflict("Email or username is already taken", code="username_taken") from exc
     channel = Channel(
         owner_id=user.id,
         handle=data.username.lower(),
@@ -89,14 +98,22 @@ async def register(
 
 
 async def login(session: AsyncSession, login_value: str, password: str, client: ClientInfo) -> Tokens:
-    user = await users_repo.get_user_by_login(session, login_value.strip())
+    login_value = login_value.strip()
+    fail_key = f"rl:loginfail:{login_value.lower()}"
+    redis = get_redis()
+    if int(await redis.get(fail_key) or 0) >= MAX_FAILED_LOGINS:
+        raise TooManyRequests("Too many failed attempts for this account, try again later")
+    user = await users_repo.get_user_by_login(session, login_value)
     # verify_password runs a full argon2 check even for unknown users (equal timing).
     if not verify_password(user.password_hash if user else None, password) or user is None:
         audit(session, "auth.login_failed", actor_id=user.id if user else None, ip=client.ip)
         await session.commit()
+        if await redis.incr(fail_key) == 1:
+            await redis.expire(fail_key, FAILED_LOGIN_WINDOW_SEC)
         raise Unauthorized("Wrong login or password", code="invalid_credentials")
     if not user.is_active:
         raise Forbidden("Account is disabled", code="account_disabled")
+    await redis.delete(fail_key)
     if password_needs_rehash(user.password_hash):
         user.password_hash = hash_password(password)
     user.last_login_at = datetime.now(UTC)

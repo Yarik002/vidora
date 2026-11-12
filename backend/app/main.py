@@ -40,6 +40,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    # Fail fast instead of signing tokens with an empty or weak key.
+    if len(settings.jwt_secret) < 32:
+        raise RuntimeError("JWT_SECRET is missing or shorter than 32 characters (run scripts/gen_env.sh)")
     app = FastAPI(
         title=f"{settings.app_name} API",
         version="1.0.0",

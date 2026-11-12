@@ -33,7 +33,7 @@ c_green=$'\e[32m'; c_red=$'\e[31m'; c_yellow=$'\e[33m'; c_reset=$'\e[0m'
 step() { echo "${c_green}==>${c_reset} $*"; }
 warn() { echo "${c_yellow}warning:${c_reset} $*" >&2; }
 die() { echo "${c_red}error:${c_reset} $*" >&2; exit 1; }
-trap 'echo "${c_red}deploy failed at line $LINENO.${c_reset} Logs: docker compose logs --tail=100" >&2' ERR
+trap 'echo "${c_red}deploy failed:${c_reset} $BASH_COMMAND (line $LINENO). Logs: docker compose logs --tail=100" >&2' ERR
 
 SUDO=""
 if [[ $EUID -ne 0 ]]; then
@@ -52,17 +52,27 @@ disk_gb=$(df -Pk . | awk 'NR==2 {print int($4/1024/1024)}')
 (( disk_gb >= 5 )) || die "need at least 5 GB free disk space, have ${disk_gb} GB"
 
 # ---------------------------------------------------------------- 2. docker
+# Network hiccups are common on fresh VMs: every download is retried.
+retry() { # retry <attempts> <command...>
+  local n=$1 i; shift
+  for ((i = 1; i <= n; i++)); do
+    "$@" && return 0
+    ((i < n)) && { warn "attempt $i/$n failed: $*; retrying in $((i * 5))s"; sleep $((i * 5)); }
+  done
+  return 1
+}
+APT=($SUDO apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30)
+
 install_docker() {
   step "Installing Docker Engine from the official apt repository"
-  $SUDO apt-get update -qq
-  $SUDO apt-get install -y -qq ca-certificates curl openssl >/dev/null
+  retry 3 "${APT[@]}" update -qq
+  retry 3 "${APT[@]}" install -y -qq ca-certificates curl openssl >/dev/null
   $SUDO install -m 0755 -d /etc/apt/keyrings
-  $SUDO curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  retry 3 $SUDO curl -fsSL --retry 5 https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   $SUDO chmod a+r /etc/apt/keyrings/docker.asc
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME:-$(lsb_release -cs)} stable" \
-    | $SUDO tee /etc/apt/sources.list.d/docker.list >/dev/null
-  $SUDO apt-get update -qq
-  $SUDO apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME:-$(lsb_release -cs)} stable"     | $SUDO tee /etc/apt/sources.list.d/docker.list >/dev/null
+  retry 3 "${APT[@]}" update -qq
+  retry 3 "${APT[@]}" install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null
 }
 
 start_docker() {
@@ -85,7 +95,13 @@ $SUDO docker info >/dev/null 2>&1 || start_docker
 # Use docker without sudo if the current user is allowed to.
 if docker info >/dev/null 2>&1; then DOCKER=(docker); else DOCKER=($SUDO docker); fi
 "${DOCKER[@]}" compose version >/dev/null 2>&1 || die "docker compose v2 plugin is missing (apt-get install docker-compose-plugin)"
-command -v openssl >/dev/null || $SUDO apt-get install -y -qq openssl >/dev/null || true
+# Small tools the script relies on (minimal images may lack them).
+missing=()
+for tool in curl; do command -v "$tool" >/dev/null || missing+=("$tool"); done
+if ((${#missing[@]})); then
+  command -v apt-get >/dev/null || die "please install: ${missing[*]}"
+  retry 3 "${APT[@]}" update -qq && retry 3 "${APT[@]}" install -y -qq "${missing[@]}" >/dev/null
+fi
 
 compose() { "${DOCKER[@]}" compose "$@"; }
 
@@ -113,9 +129,10 @@ env_get() { grep -E "^$1=" .env | head -1 | cut -d= -f2-; }
 
 # ---------------------------------------------------------------- 5. build and start
 step "Building images (first run takes a few minutes)"
-compose build --pull
+retry 3 compose build --pull  # base images and packages come from the network
 
 step "Starting services"
+retry 3 compose pull --quiet --ignore-buildable  # third-party images (Postgres, Redis, MinIO)
 compose up -d --remove-orphans
 
 step "Waiting for the app to become ready"
@@ -129,12 +146,20 @@ done
 $ready || { compose ps; die "app is not ready after 3 minutes, see: docker compose logs --tail=100 api web"; }
 
 # ---------------------------------------------------------------- 6. accounts and demo data
+# Admin/demo passwords are handed only to these one-off containers (-e NAME takes the value
+# from this shell), never to the long-running api/worker.
+export ADMIN_USERNAME ADMIN_EMAIL ADMIN_PASSWORD DEMO_PASSWORD
+ADMIN_USERNAME="$(env_get ADMIN_USERNAME)"
+ADMIN_EMAIL="$(env_get ADMIN_EMAIL)"
+ADMIN_PASSWORD="$(env_get ADMIN_PASSWORD)"
+DEMO_PASSWORD="$(env_get DEMO_PASSWORD)"
+
 step "Creating the admin account (if missing)"
-compose run --rm --no-deps -T api python -m app.scripts.create_admin
+compose run --rm --no-deps -T -e ADMIN_USERNAME -e ADMIN_EMAIL -e ADMIN_PASSWORD api python -m app.scripts.create_admin
 
 if $DEMO; then
   step "Loading demo data (14 videos are generated and transcoded with ffmpeg, takes 2-5 minutes)"
-  compose run --rm --no-deps -T worker python -m app.scripts.seed
+  compose run --rm --no-deps -T -e DEMO_PASSWORD worker python -m app.scripts.seed
 fi
 
 # ---------------------------------------------------------------- 7. summary
