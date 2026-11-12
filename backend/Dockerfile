@@ -6,8 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core curl \
+# Debian mirrors over HTTPS with retries: plain HTTP (port 80) is blocked or flaky on some networks
+# (it failed in our Docker-in-Docker deploy test), HTTPS also protects the package download path.
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+ && apt-get -o Acquire::Retries=5 update \
+ && apt-get -o Acquire::Retries=5 install -y --no-install-recommends ffmpeg fonts-dejavu-core curl \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --system --gid 10001 app \
  && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app
