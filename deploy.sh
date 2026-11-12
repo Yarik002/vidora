@@ -33,7 +33,7 @@ c_green=$'\e[32m'; c_red=$'\e[31m'; c_yellow=$'\e[33m'; c_reset=$'\e[0m'
 step() { echo "${c_green}==>${c_reset} $*"; }
 warn() { echo "${c_yellow}warning:${c_reset} $*" >&2; }
 die() { echo "${c_red}error:${c_reset} $*" >&2; exit 1; }
-trap 'echo "${c_red}deploy failed at line $LINENO.${c_reset} Logs: docker compose logs --tail=100" >&2' ERR
+trap 'echo "${c_red}deploy failed:${c_reset} $BASH_COMMAND (line $LINENO). Logs: docker compose logs --tail=100" >&2' ERR
 
 SUDO=""
 if [[ $EUID -ne 0 ]]; then
