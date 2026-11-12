@@ -24,6 +24,10 @@ fi
 rand() { # $1 = length, alphanumeric only (safe for URLs, shells and YAML)
   LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1" || true
 }
+rand_password() { # letters + guaranteed digits, so it always passes the app's password policy
+  printf '%s%s%s' "$(rand_from 'A-Za-z' "$1")" "$(rand_from '0-9' 3)" "$(rand_from 'a-z' 2)"
+}
+rand_from() { LC_ALL=C tr -dc "$1" </dev/urandom | head -c "$2" || true; }
 
 touch "$ENV_FILE"
 chmod 600 "$ENV_FILE" 2>/dev/null || true
@@ -57,8 +61,8 @@ set_default BUCKET_MEDIA vidora-media
 set_default JWT_SECRET "$(rand 64)"
 set_default ADMIN_USERNAME admin
 set_default ADMIN_EMAIL "admin@vidora.example.com"
-set_default ADMIN_PASSWORD "$(rand 16)"
-set_default DEMO_PASSWORD "$(rand 12)"
+set_default ADMIN_PASSWORD "$(rand_password 14)"
+set_default DEMO_PASSWORD "$(rand_password 10)"
 set_default MAX_UPLOAD_MB 1024
 
 # TLS: with a domain -> Let's Encrypt (needs an email), without -> internal CA on demand.

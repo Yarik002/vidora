@@ -4,6 +4,8 @@ import asyncio
 import os
 import sys
 
+from pydantic import ValidationError
+
 from app.db.session import SessionLocal, engine
 from app.models import Role
 from app.repositories import users as users_repo
@@ -26,7 +28,13 @@ async def main() -> int:
                 await session.commit()
             print(f"create_admin: user '{username}' already exists, role=admin")
         else:
-            data = RegisterIn(email=email, username=username, password=password, channel_title="Vidora Admin")
+            try:
+                data = RegisterIn(email=email, username=username, password=password, channel_title="Vidora Admin")
+            except ValidationError as exc:
+                # Never print input values: the password is one of them.
+                fields = ", ".join(str(e["loc"][0]) for e in exc.errors())
+                print(f"create_admin: invalid ADMIN_* settings: {fields}", file=sys.stderr)
+                return 1
             await auth_service.register(
                 session, data, auth_service.ClientInfo(ip=None, user_agent="cli"), Role.ADMIN
             )
