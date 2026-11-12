@@ -135,12 +135,20 @@ done
 $ready || { compose ps; die "app is not ready after 3 minutes, see: docker compose logs --tail=100 api web"; }
 
 # ---------------------------------------------------------------- 6. accounts and demo data
+# Admin/demo passwords are handed only to these one-off containers (-e NAME takes the value
+# from this shell), never to the long-running api/worker.
+export ADMIN_USERNAME ADMIN_EMAIL ADMIN_PASSWORD DEMO_PASSWORD
+ADMIN_USERNAME="$(env_get ADMIN_USERNAME)"
+ADMIN_EMAIL="$(env_get ADMIN_EMAIL)"
+ADMIN_PASSWORD="$(env_get ADMIN_PASSWORD)"
+DEMO_PASSWORD="$(env_get DEMO_PASSWORD)"
+
 step "Creating the admin account (if missing)"
-compose run --rm --no-deps -T api python -m app.scripts.create_admin
+compose run --rm --no-deps -T -e ADMIN_USERNAME -e ADMIN_EMAIL -e ADMIN_PASSWORD api python -m app.scripts.create_admin
 
 if $DEMO; then
   step "Loading demo data (14 videos are generated and transcoded with ffmpeg, takes 2-5 minutes)"
-  compose run --rm --no-deps -T worker python -m app.scripts.seed
+  compose run --rm --no-deps -T -e DEMO_PASSWORD worker python -m app.scripts.seed
 fi
 
 # ---------------------------------------------------------------- 7. summary

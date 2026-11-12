@@ -51,6 +51,8 @@ set_default ENVIRONMENT production
 set_default POSTGRES_DB vidora
 set_default POSTGRES_USER vidora
 set_default POSTGRES_PASSWORD "$(rand 32)"
+set_default APP_DB_USER vidora_app
+set_default APP_DB_PASSWORD "$(rand 32)"
 set_default REDIS_PASSWORD "$(rand 32)"
 set_default MINIO_ROOT_USER "vidora-root"
 set_default MINIO_ROOT_PASSWORD "$(rand 40)"
