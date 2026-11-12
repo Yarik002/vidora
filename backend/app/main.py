@@ -4,7 +4,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.v1 import auth, comments, health, internal, uploads, videos
+from app.api.v1 import (
+    auth,
+    channels,
+    comments,
+    health,
+    internal,
+    me,
+    moderation,
+    playlists,
+    search,
+    uploads,
+    videos,
+)
 from app.core.config import get_settings
 from app.core.csrf import csrf_middleware
 from app.core.errors import register_error_handlers
@@ -41,8 +53,22 @@ def create_app() -> FastAPI:
     app.middleware("http")(csrf_middleware)
 
     api_prefix = "/api/v1"
-    for module in (health, internal, auth, videos, uploads, comments):
-        app.include_router(module.router, prefix=api_prefix)
+    for router in (
+        health.router,
+        internal.router,
+        auth.router,
+        videos.router,
+        uploads.router,
+        comments.router,
+        channels.router,
+        playlists.router,
+        me.router,
+        search.router,
+        moderation.reports_router,
+        moderation.router,
+        moderation.admin_router,
+    ):
+        app.include_router(router, prefix=api_prefix)
     return app
 
 
